@@ -19,7 +19,6 @@
  */
 package com.spotify.apollo;
 
-import com.google.auto.value.AutoValue;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -27,26 +26,37 @@ import com.google.common.collect.ImmutableMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@AutoValue
-abstract class Headers {
+class Headers {
 
   static Headers EMPTY = create(Collections.emptyMap());
 
+  private final ImmutableList<Map.Entry<String, String>> entries;
+  private ImmutableMap<String, String> memoizedMap;
+
   static Headers create(Map<String, String> headers) {
-    final List<Map.Entry<String, String>> headersList = new ArrayList<>(headers.size());
-    headers.entrySet().forEach(h -> insertIfAbsent(headersList, h));
-    return new AutoValue_Headers(ImmutableList.copyOf(headersList));
+    return new Headers(headers);
+  }
+
+  private Headers(Map<String, String> headers) {
+    // Filter out possible duplicates (same key with different letter case)
+    final List<Map.Entry<String, String>> filteredHeaders = new ArrayList<>(headers.size());
+    headers.entrySet().forEach(h -> insertIfAbsent(filteredHeaders, h));
+    entries = ImmutableList.copyOf(filteredHeaders);
+
+    // Initialize memoized map since asMap() is used very often
+    memoizedMap = toMap(entries);
   }
 
   public Optional<String> get(String name) {
     Preconditions.checkArgument(name != null, "Header names cannot be null");
 
-    for (int i = 0; i < entries().size(); i++) {
-      final Map.Entry<String, String> headerEntry = entries().get(i);
+    for (int i = 0; i < entries.size(); i++) {
+      final Map.Entry<String, String> headerEntry = entries.get(i);
       if (name.equalsIgnoreCase(headerEntry.getKey())) {
         return Optional.ofNullable(headerEntry.getValue());
       }
@@ -56,12 +66,12 @@ abstract class Headers {
   }
 
   public Map<String, String> asMap() {
-    ImmutableMap.Builder<String, String> headers = ImmutableMap.builder();
-    entries().forEach(headers::put);
-    return headers.build();
+    return memoizedMap;
   }
 
-  public abstract ImmutableList<Map.Entry<String, String>> entries();
+  public List<Map.Entry<String, String>> entries() {
+    return entries;
+  }
 
   private static void insertIfAbsent(List<Map.Entry<String, String>> headerList,
                                      Map.Entry<String, String> newHeader) {
@@ -77,6 +87,12 @@ abstract class Headers {
 
     // No matching entry present, add new entry
     headerList.add(new SimpleImmutableEntry<>(newHeader));
+  }
+
+  private static ImmutableMap<String, String> toMap(List<Map.Entry<String, String>> items) {
+    Map<String, String> map = new LinkedHashMap<>(items.size());
+    items.forEach(e -> map.put(e.getKey(), e.getValue()));
+    return ImmutableMap.copyOf(map);
   }
 
 }
