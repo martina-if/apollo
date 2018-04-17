@@ -10,6 +10,11 @@ import java.util.function.Function;
 import okio.ByteString;
 import org.slf4j.Logger;
 
+/**
+ * A generic parsing client that parses the output of an apollo client with the given
+ * parsing Function. If there is a fallback value set, it will be used in case an
+ * exception is thrown.
+ */
 public class GenericParsingClient<T> implements ParsingClient<T> {
 
   private static final Logger LOG = getLogger(GenericParsingClient.class);
@@ -19,7 +24,7 @@ public class GenericParsingClient<T> implements ParsingClient<T> {
 
 
   public static <T> GenericParsingClient<T> create(Client delegate,
-                                        Function<Response<ByteString>, T> parsingFunction) {
+                                                   Function<Response<ByteString>, T> parsingFunction) {
     return new GenericParsingClient<>(delegate, parsingFunction, null);
   }
 
@@ -27,7 +32,7 @@ public class GenericParsingClient<T> implements ParsingClient<T> {
     return new GenericParsingClient<>(this.delegate, this.parsingFunction, fallbackValue);
   }
 
-  private GenericParsingClient(
+  GenericParsingClient(
       Client client, Function<Response<ByteString>, T> parsingFunction, T fallbackValue) {
     this.delegate = client;
     this.parsingFunction = parsingFunction;
@@ -40,13 +45,14 @@ public class GenericParsingClient<T> implements ParsingClient<T> {
         .thenApply(parsingFunction);
 
     // Optionally set a fallback value
-    if (fallbackValue == null) {
-      return parsedResult;
+    if (fallbackValue != null) {
+      return parsedResult.exceptionally(throwable -> {
+        LOG.warn("Error while requesting {}. Using fallback value", request.uri(), throwable);
+        return fallbackValue;
+      });
     }
 
-    return parsedResult.exceptionally(throwable -> {
-      LOG.warn("Error while requesting {}. Using fallback value", request.uri(), throwable);
-      return fallbackValue;
-    });
+    return parsedResult;
+
   }
 }

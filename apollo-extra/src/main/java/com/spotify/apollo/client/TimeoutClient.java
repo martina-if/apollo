@@ -7,12 +7,16 @@ import java.time.Duration;
 import java.util.concurrent.CompletionStage;
 import okio.ByteString;
 
+/**
+ * An apollo client that can be configured to always use a certain timeout or TTL.
+ * It will override every request to set the TTL.
+ */
 public final class TimeoutClient implements Client {
 
   private final Client delegate;
   private final Duration timeout;
 
-  public TimeoutClient create(Client delegate, Duration timeout) {
+  public static TimeoutClient create(Client delegate, Duration timeout) {
     return new TimeoutClient(delegate, timeout);
   }
 
