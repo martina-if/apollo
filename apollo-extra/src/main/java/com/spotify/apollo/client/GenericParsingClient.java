@@ -5,7 +5,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 import com.spotify.apollo.Client;
 import com.spotify.apollo.Request;
 import com.spotify.apollo.Response;
-import java.time.Duration;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import okio.ByteString;
@@ -17,43 +16,27 @@ public class GenericParsingClient<T> implements ParsingClient<T> {
   private final Client delegate;
   private final Function<Response<ByteString>, T> parsingFunction;
   private final T fallbackValue;
-  private final Duration timeout;
 
 
-  public GenericParsingClient<T> create(Client delegate,
+  public static <T> GenericParsingClient<T> create(Client delegate,
                                         Function<Response<ByteString>, T> parsingFunction) {
-    return new GenericParsingClient<>(delegate, parsingFunction, null, null);
+    return new GenericParsingClient<>(delegate, parsingFunction, null);
   }
 
   public GenericParsingClient<T> withFallbackValue(T fallbackValue) {
-    return new GenericParsingClient<>(this.delegate, this.parsingFunction, fallbackValue, null);
-  }
-
-  public GenericParsingClient<T> withTimeout(Duration timeout) {
-    return new GenericParsingClient<>(this.delegate, this.parsingFunction, null, timeout);
+    return new GenericParsingClient<>(this.delegate, this.parsingFunction, fallbackValue);
   }
 
   private GenericParsingClient(
-      Client client, Function<Response<ByteString>, T> parsingFunction, T fallbackValue,
-      Duration timeout) {
+      Client client, Function<Response<ByteString>, T> parsingFunction, T fallbackValue) {
     this.delegate = client;
     this.parsingFunction = parsingFunction;
     this.fallbackValue = fallbackValue;
-    this.timeout = timeout;
   }
 
   @Override
   public CompletionStage<T> send(Request request) {
-
-    // Optionally set a timeout
-    final Request actualRequest;
-    if (timeout != null) {
-      actualRequest = request.withTtl(timeout);
-    } else {
-      actualRequest = request;
-    }
-
-    CompletionStage<T> parsedResult = delegate.send(actualRequest)
+    CompletionStage<T> parsedResult = delegate.send(request)
         .thenApply(parsingFunction);
 
     // Optionally set a fallback value
